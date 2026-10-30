@@ -193,8 +193,48 @@ set FLOWLIVE_DATA=D:\...\flowlive-native\build\core\data
 python tests/test_core.py
 ```
 
-当前：**10 项全绿**，覆盖权限四层、联网开关、CSV 导入、辨识度、越权记录、
-离线端到端、无效重试、模型输出解析、自定义 Agent 持久化。
+实测输出（2026-10-30 重跑）：
+
+```
+== 权限 ==
+  ✓ 联网开关无法打开
+  ✓ 等级不足被拒
+  ✓ 路径越界被拒
+  ✓ 白名单外被拒
+
+== 数据与工具 ==
+  ✓ CSV 导入 + 辨识度
+  ✓ 越权调用被记录
+
+== Agent 循环 ==
+  ✓ 离线端到端跑通
+  ✓ 无效重试被拒
+  ✓ 模型输出解析
+  ✓ 自定义 Agent 持久化
+
+==================================================
+通过 10 项，失败 0 项
+```
+
+退出码 0。CI 同源步骤见 [`.github/workflows/test.yml`](.github/workflows/test.yml)，
+最近一次 [run 41040154868](https://github.com/LastTrainKing/market-agent/actions/runs/41040154868) 为 success。
+
+---
+
+## 进一步阅读
+
+| 文档 | 内容 |
+|---|---|
+| 本文件 | 快速开始、架构、三条硬规则、权限模型、数据格式 |
+| [`agent_core/permissions.py`](agent_core/permissions.py) | 权限四层判定的实现与注释 |
+| [`agent_core/agent.py`](agent_core/agent.py) | 运行循环与三条硬规则的落地位置 |
+| [`market_tools.py`](market_tools.py) | 工具集实现（只读本地，零网络） |
+| [`tests/test_core.py`](tests/test_core.py) | 10 项测试，可直接当行为规格读 |
+
+上游看盘项目（数据格式来源）：
+[`realtime-market-monitor`](https://github.com/LastTrainKing/realtime-market-monitor) ·
+其 Shell 版总入口
+[`docs/SHELL.md`](https://github.com/LastTrainKing/realtime-market-monitor/blob/shell/no-data-read/docs/SHELL.md)。
 
 ---
 
