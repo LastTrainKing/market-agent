@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.audit/
+data/
+agents.json
+demo/
