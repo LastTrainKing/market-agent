@@ -1,0 +1,73 @@
+name: test
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    name: 核心链路测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装依赖
+        run: python -m pip install --quiet numpy
+
+      - name: 语法检查
+        run: python -m compileall -q agent_core market_tools.py localio.py cli.py tests
+
+      - name: 单元测试
+        run: python tests/test_core.py
+
+      - name: 端到端演示
+        run: |
+          mkdir -p demo
+          printf '时间,板块代码,板块名称,主力净额\n09:31,BK1036,半导体,1.5e8\n09:32,BK1036,半导体,2.1e8\n09:31,BK1202,房地产,-3e7\n09:32,BK1202,房地产,-5e7\n' > demo/s.csv
+          python cli.py import demo/s.csv 20261030
+          python cli.py run reviewer "复盘最新一天"
+
+  data-boundary:
+    name: 数据边界守卫
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 工具集不得联网
+        run: |
+          set -e
+          # 市场工具与导入器是产品的数据面，必须零网络
+          for f in market_tools.py localio.py; do
+            if grep -Eq '^\s*(import|from)\s+(urllib|http\.client|socket|ssl|requests|httpx|aiohttp)' "$f"; then
+              echo "::error::$f 导入了网络库"
+              grep -En '^\s*(import|from)\s+(urllib|http\.client|socket|ssl|requests|httpx|aiohttp)' "$f"
+              exit 1
+            fi
+            if grep -Eq 'https?://' "$f"; then
+              echo "::error::$f 含 URL 字面量"
+              exit 1
+            fi
+          done
+          echo "✓ market_tools.py / localio.py 零网络"
+
+      - name: 权限闸门不允许联网
+        run: |
+          python - <<'PY'
+          from agent_core.permissions import Permission, PermissionGate
+          try:
+              PermissionGate(Permission(network=True))
+          except ValueError:
+              print("✓ network=True 被拒绝")
+          else:
+              raise SystemExit("::error::network=True 竟然被接受")
+          PY
