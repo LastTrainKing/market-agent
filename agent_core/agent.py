@@ -90,6 +90,7 @@ class RunResult:
     denied: list = field(default_factory=list)
     stats: dict = field(default_factory=dict)
     audit_path: str = ""
+    trace: list = field(default_factory=list)   # 逐步轨迹，供界面渲染
 
     def brief(self) -> str:
         return ("%s | %d 步 | %d 次工具调用 | %d 次拒绝"
@@ -130,6 +131,7 @@ class Agent:
         messages: list[dict] = [{"role": "user", "content": goal}]
         calls: list = []
         denied: list = []
+        trace: list = []
         last_sig = None
         answer = ""
         ok = False
@@ -145,6 +147,8 @@ class Agent:
 
             if action.kind == "final":
                 answer = action.answer
+                trace.append({"step": step, "kind": "final",
+                              "thought": action.thought or "(结论)"})
                 audit.step(step, action.thought or "(结论)", tool="", args={})
                 # 规则 1：结论必须挂在成功的工具调用上（纯咨询类目标除外）
                 ok = bool(calls) or not visible
@@ -161,6 +165,8 @@ class Agent:
                 continue
             last_sig = sig
 
+            trace.append({"step": step, "kind": "tool", "tool": action.tool,
+                          "args": action.args, "thought": action.thought})
             audit.step(step, action.thought, tool=action.tool, args=action.args)
 
             try:
@@ -180,10 +186,20 @@ class Agent:
             messages.append({"role": "assistant",
                              "content": "（已执行 %s）" % action.tool})
 
+        # 规则 1 的补强：结论若只是"权限拒绝"，不算完成。
+        # 否则界面会显示"成功"，而用户看到的是"没做成"——这是最误导人的状态。
+        if (answer or "").strip().startswith("权限拒绝"):
+            ok = False
+        # 有拒绝时把原因附在结论末尾，别让用户自己翻审计
+        if denied and ok:
+            answer = answer + chr(10) + chr(10) + "（本次有 %d 次调用被拒绝：%s）" % (
+                len(denied), "；".join(denied[:3]))
+
         stats = self.gate.summary()
         audit.run_end("ok" if ok else "incomplete", answer[:500], stats)
         return RunResult(ok=ok, answer=answer, steps=step, tool_calls=calls,
-                         denied=denied, stats=stats, audit_path=audit_path)
+                         denied=denied, stats=stats, audit_path=audit_path,
+                         trace=trace)
 
 
 # ====================================================================== 注册表

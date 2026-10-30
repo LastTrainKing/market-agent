@@ -23,6 +23,25 @@ _COL_KIND = ("类型", "kind", "类别")
 _COL_VAL = ("主力净额", "主力净流入", "净额", "net", "value")
 
 
+SHELL_MODE_ENV = "FLOWLIVE_SHELL_MODE"
+_MODE_PURE = "pure"
+_MODE_REPLAY = "replay"
+
+
+def mode() -> str:
+    """当前形态：pure（纯空壳）/ replay（离线复盘终端）。
+
+    与 flowlive-native 用同一个环境变量，两边行为一致。
+    """
+    v = (os.environ.get(SHELL_MODE_ENV) or _MODE_REPLAY).strip().lower()
+    return _MODE_PURE if v == _MODE_PURE else _MODE_REPLAY
+
+
+def import_enabled() -> bool:
+    """纯空壳形态下关闭导入。"""
+    return mode() == _MODE_REPLAY
+
+
 def data_dir() -> str:
     p = os.environ.get("FLOWLIVE_DATA")
     if p and os.path.isdir(p):
@@ -64,6 +83,8 @@ def _norm_code(s):
 def import_csv(path: str, tag: str, data_date: str | None = None,
                kind: str = "concept", out_dir: str | None = None):
     """导入 CSV 为面板，返回 (meta, mat)。"""
+    if not import_enabled():
+        raise RuntimeError("纯空壳形态不提供导入功能（FLOWLIVE_SHELL_MODE=pure）")
     with open(path, encoding="utf-8-sig", newline="") as f:
         rows = list(csv.reader(f))
     if len(rows) < 2:
